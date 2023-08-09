@@ -85,7 +85,7 @@ class Boo:
                     titles.append(t)
             for s in soup.find_all(attrs={"epub:type": "title"}):
                 t = s.get_text()
-                if t.strip() and t not in titles:
+                if len(t.strip()) > 1 and t not in titles:
                     titles.append(t)
             filter_titles = [title for title in titles if extra.is_text(title)]
             if filter_titles:
@@ -170,8 +170,7 @@ if __name__ == '__main__':
         logger.error("config file does not exist")
         raise FileNotFoundError
 
-    output_path = "."
-    cache_path = 'cache'
+    output_dir = "."
     cache_method = 'split'
     if args.book and os.path.exists(args.book) and args.book.endswith('.epub'):
         book_path = args.book
@@ -180,7 +179,7 @@ if __name__ == '__main__':
         raise ValueError
     orig_name = os.path.basename(book_path)
     if args.out_dir and os.path.exists(args.out_dir):
-        output_path = args.out_dir
+        output_dir = args.out_dir
     if args.target_lang:
         target_lang = args.target_lang
     else:
@@ -218,7 +217,10 @@ if __name__ == '__main__':
     oat.glossary_dict = oat.formatting_glossary(raw_glossary)
 
     md5 = get_file_md5(book_path)
-    cache_file = f"{cache_path}/{md5}.db"
+    if 'cache_file' in config.keys() and config['cache_file'].endswith('.db'):
+        cache_file = config['cache_file']
+    else:
+        cache_file = f"cache/{md5}.db"
 
     tmp_path = f".{md5}.epub"
     if os.path.exists(tmp_path) and os.path.isfile(tmp_path):
@@ -259,7 +261,7 @@ if __name__ == '__main__':
     b.write_pages(tmp_path, page_hrefs, trans_pg_data)
 
     saved_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    target_path = f"{output_path}/[{saved_time}]{orig_name}"
+    target_path = f"{output_dir}/[{saved_time}]{orig_name}"
     shutil.copy2(tmp_path, target_path)
     os.remove(tmp_path)
     logger.info("Completed Saving\n")

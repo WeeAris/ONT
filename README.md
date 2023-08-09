@@ -17,7 +17,6 @@ This is a script that uses the OpenAI API to translate epub files. Other than re
 	- Does not allow setting backup translation options
 	- Does not support other APIs like poe bot
 	- Does not track global token consumption
-	- Does not allow customizing cache path
 	- Uses a lot of AI-generated code
 	- The developer has never properly learned programming and does not have time
 
@@ -29,7 +28,14 @@ This is a script that uses the OpenAI API to translate epub files. Other than re
 	- Translates page titles first before main text, adds to terminology list
 	- Allows setting token limit per request
 	- Can estimate token cost without actual translation
-	
+	- Can custom cache file
+
+**Command Example**:
+
+```commandline
+python3 ONT/main.py -b 'path/to/your/ebook.epub' -c 'path/to/your/config.json' -t 'Simplified Chinese'
+```
+
 **Terminology Example**:
 
 Supports terms types like per, noun, loc, title, phrase, see source code for details.

@@ -6,5 +6,6 @@
         "token_limit": 1250
     },
     "cache_method": "split",
-    "glossary": "/path/to/your/glossary.json"
+    "cache_file": "path/to/your/cache/file.db",
+    "glossary": "path/to/your/glossary.json"
 }
