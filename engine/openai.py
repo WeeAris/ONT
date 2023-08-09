@@ -376,14 +376,23 @@ class OpenAITrans:
                 self.write_split_cache(origin_content, translated)
                 return translated
             except requests.exceptions.Timeout:
-                self.logger.error(f"Translate request to f{url} timeout")
+                self.logger.error(f"Translate request to f{url} timeout\n")
             except requests.exceptions.JSONDecodeError:
                 self.logger.error(f'Failed to decode response, status code: {response.status_code}')
-                self.logger.debug(f'Response: \n{response.text}')
+                self.logger.debug(f'Response: \n{response.text}\n')
                 if response.status_code == 429:
-                    sleep_time = (try_count + 1) * 210.0
-                    self.logger.warning(f"Reached rate limit, try sleep {sleep_time} seconds")
+                    sleep_time = (try_count + 1) ** 3 * 10.0
+                    self.logger.warning(f"Reached rate limit, try sleep {sleep_time} seconds\n")
                     time.sleep(sleep_time)
+                elif response.status_code == 403:
+                    self.logger.error("You seem to be blocked from accessing this API address\n")
+                    raise requests.exceptions.HTTPError
+                elif response.status_code == 502 or 500:
+                    self.logger.error("The server seems to have encountered an error internally, wait 15s\n")
+                    time.sleep(15.0)
+                elif response.status_code == 401:
+                    self.logger.error("Authentication failed, you may be using an invalid API key.")
+                    raise requests.exceptions.HTTPError
             except ValueError:
                 self.logger.error("Translation check failed.")
             except Exception as e:
@@ -391,9 +400,8 @@ class OpenAITrans:
                 continue
 
             try_count += 1
-            time.sleep(3.0)
 
-        self.logger.error("Exceeded max retry count, giving up. ")
+        self.logger.error("Exceeded max retry count, giving up. \n")
         self.logger.debug(f"Original: {origin_content}")
         return origin_content
 
@@ -433,7 +441,7 @@ class OpenAITrans:
             task_num -= 1
             end_time = time.time()
             self.logger.info(f"A split task took time: {float(end_time - start_time)}")
-            time.sleep(1)
+
         no_cache_pgs_trans = self.restore_task(no_cache_pgs_orig, translated_contents)
         # 还原索引
         finished_trans = []
