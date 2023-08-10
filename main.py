@@ -75,23 +75,34 @@ class Boo:
             titles = []
             try:
                 t1 = soup.title.get_text()
-                if t1.strip():
+                if len(t1.strip()) > 2:
                     titles.append(t1)
             except AttributeError:
                 pass
             for s in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5']):
                 t = s.get_text()
-                if t.strip() and t not in titles:
+                if len(t.strip()) > 2 and t not in titles:
                     titles.append(t)
             for s in soup.find_all(attrs={"epub:type": "title"}):
                 t = s.get_text()
-                if len(t.strip()) > 1 and t not in titles:
+                if len(t.strip()) > 2 and t not in titles:
                     titles.append(t)
             filter_titles = [title for title in titles if extra.is_text(title)]
             if filter_titles:
                 all_titles.append(filter_titles)
 
         return all_titles
+
+    @staticmethod
+    def modify_indent(a: str, b: str) -> str:
+        if b.startswith(' '):
+            num_spaces = len(b) - len(b.lstrip())
+            return (' ' * num_spaces) + a.lstrip()
+        elif b.startswith('\t'):
+            num_spaces = len(b) - len(b.lstrip())
+            return ('\t' * num_spaces) + a.lstrip()
+        else:
+            return a
 
     # 用译文替换原文，并保留排版
     def apply_trans_to_pages(self, pages_data: list[bytes], original_contents: list[list[str]],
@@ -120,6 +131,7 @@ class Boo:
                                     logger.error("Error while applying translation to a tag with multiple lines.")
                                     break
                     else:
+                        para_trans = self.modify_indent(para_trans, para)
                         node.string = para_trans
                     para_count += 1
             # logger.debug(f"页面{idx}共有{para_count}段被成功还原.")
@@ -226,12 +238,12 @@ if __name__ == '__main__':
     if os.path.exists(tmp_path) and os.path.isfile(tmp_path):
         os.remove(tmp_path)
     shutil.copy2(book_path, tmp_path)
-    b = Boo(tmp_path)
+    book = Boo(tmp_path)
 
     # 读取epub文件
-    page_hrefs, all_pages_data = b.read_epub()
-    orig_titles = b.extract_titles_from_pages(all_pages_data)
-    orig_pgs_texts = b.extract_text_from_pages(all_pages_data)
+    page_hrefs, all_pages_data = book.read_epub()
+    orig_titles = book.extract_titles_from_pages(all_pages_data)
+    orig_pgs_texts = book.extract_text_from_pages(all_pages_data)
 
     # 打印元数据
     # logger.info(f"书名：{book.get_metadata('DC', 'title')[0][0]}")
@@ -248,7 +260,7 @@ if __name__ == '__main__':
     if orig_titles:
         logger.info("Translate titles before starting to translate content.\n")
         trans_titles = oat.start_task(orig_titles)
-        raw_glossary = b.add_title_glossary(orig_titles, trans_titles, raw_glossary)
+        raw_glossary = book.add_title_glossary(orig_titles, trans_titles, raw_glossary)
         oat.glossary_dict = oat.formatting_glossary(raw_glossary)
     logger.info("Begin translation of the main text.\n")
     trans_contents = oat.start_task(orig_pgs_texts)
@@ -257,8 +269,8 @@ if __name__ == '__main__':
     # 还原排版
     logger.info("Start saving\n")
 
-    trans_pg_data = b.apply_trans_to_pages(all_pages_data, orig_pgs_texts, trans_contents)
-    b.write_pages(tmp_path, page_hrefs, trans_pg_data)
+    trans_pg_data = book.apply_trans_to_pages(all_pages_data, orig_pgs_texts, trans_contents)
+    book.write_pages(tmp_path, page_hrefs, trans_pg_data)
 
     saved_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     target_path = f"{output_dir}/[{saved_time}]{orig_name}"
