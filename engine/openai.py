@@ -22,7 +22,7 @@ class OpenAITrans:
         self.default_model = 'gpt-3.5-turbo'
         self.custom_model = model
         self.default_sys_prompt = (
-            "You need to translate the text provided in JSON format to $target_lang. The JSON text consists of multiple key-value pairs, where each key represents a paragragh number and the corresponding value represents the content of a paragraph in the original text. \n"
+            "You need to translate the text provided in JSON format to $target_lang. The JSON text consists of multiple key-value pairs, where each key represents a paragraph number and the corresponding value represents the content of a paragraph in the original text. \n"
             "$fmt \n"
             "You need to use your language skills and understanding of the context to ensure that the translated version retains the information and structure of the original text. The translation should read naturally with $target_lang and take into account important cultural and linguistic nuances, and maintain typography as much as possible. \n"
             "You should retain Roman numerals, Arabic numerals and special characters in the original text to ensure a consistent translation style and typography. \n"
