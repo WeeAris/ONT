@@ -29,7 +29,6 @@ class OpenAITrans:
             "If the original text is inherently incomplete, you should maintain that incompleteness in the translation in order to ensure accurate meaning and correct style. \n"
             "You will also need to construct a lexical database using terms primarily from the original content to help accurately translate specific sentences, nouns, places and persons. \n"
             "For specified sentences, titles, personal and place names, you should prioritize the use of translations from the glossary below, or if not in the glossary, use an agreed-upon translation based on the characteristics and context of the person or place name, and if none of these methods are appropriate, then finally consider the use of a harmonic translation. Unless it's a conversation between characters or the style of the essay requires it, you should use written language whenever possible. \n"
-            "Glossary list: \n"
             "$glossary \n"
             "Your ultimate goal is to provide accurate, creative translations that are clear and easy to read, but also fit the spirit and flavor of the original. \n"
             "Once the translation is complete, take the time to check the translation for readability and accuracy. Translated text needs to be provided in the same JSON structure as received and maintain the original structure of the key-value pairs in the original JSON text. You should especially pay attention to escaping and completeness of symbols.\n"
@@ -201,7 +200,10 @@ class OpenAITrans:
             if term_class == 'noun':
                 term_des = 'noun'
             elif term_class == 'per':
-                term_des = 'personal name or calling'
+                if term_dict['gender']:
+                    term_des = f'{term_dict["gender"]} personal name or calling'
+                else:
+                    term_des = 'personal name or calling'
             elif term_class == 'loc':
                 term_des = 'location'
             elif term_class == 'title':
@@ -216,7 +218,7 @@ class OpenAITrans:
 
     @staticmethod
     def select_glossary(formatted_glossary: dict, origin_content: list[str]):
-        fin_glossary = []
+        fin_glossary = ["The glossary includes:"]
         content = str(origin_content)
         for term, trans in formatted_glossary.items():
             if term in content:
