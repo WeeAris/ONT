@@ -44,6 +44,8 @@ class OpenAITrans:
         self.use_page_cache = False
         self.default_cache_path: str = './cache/translation.db'
         self.conn = sqlite3.connect(self.default_cache_path)
+        self.prompt_token_cost = 0
+        self.completion_token_cost = 0
 
     fallback = False
     custom_limit_tokens = 0
@@ -364,6 +366,8 @@ class OpenAITrans:
                 result: str | dict = res['choices'][0]['message']['content']
 
                 self.logger.info(f"Total token count by response: {res['usage']['total_tokens']}")
+                self.prompt_token_cost += res['usage']['prompt_tokens']
+                self.completion_token_cost += res['usage']['completion_tokens']
                 if not isinstance(result, dict):
                     translated_content = self.parse_result_msg(result)
                 else:

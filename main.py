@@ -264,7 +264,9 @@ if __name__ == '__main__':
         oat.glossary_dict = oat.formatting_glossary(raw_glossary)
     logger.info("Begin translation of the main text.\n")
     trans_contents = oat.start_task(orig_pgs_texts)
-    logger.info("Completed translation of the main text")
+    logger.info("Completed translation of the main text.\n")
+    logger.info(f"Total prompt tokens cost: {oat.prompt_token_cost}")
+    logger.info(f"Total completion tokens cost: {oat.completion_token_cost}")
 
     # 还原排版
     logger.info("Start saving\n")
