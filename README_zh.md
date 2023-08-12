@@ -17,7 +17,6 @@
 	- 不支持逐句或逐段翻译
 	- 不支持设置备用翻译选项
 	- 不支持使用poe bot等其他API
-	- 未完成全局token消耗统计功能
 	- 大量使用AI生成的代码
 	- 开发者本人从未学习过软件开发，而且没有时间
 
@@ -30,6 +29,7 @@
 	- 自定义单次请求原文部分的token上限
 	- 不进行翻译，只对token消耗进行估算
     - 能自定义缓存文件位置
+	- 能全局统计token实际消耗
 
 **使用示例**:
 
@@ -56,7 +56,9 @@ python3 ONT/main.py -b 'path/to/your/ebook.epub' -c 'path/to/your/config.json' -
 
 "trans": "普莱德",
 
-"class": "per"
+"class": "per",
+  
+"gender": "female"
 
 },
 

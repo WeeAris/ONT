@@ -16,7 +16,6 @@ This is a script that uses the OpenAI API to translate epub files. Other than re
 	- Does not allow sentence-by-sentence or paragraph-by-paragraph translation
 	- Does not allow setting backup translation options
 	- Does not support other APIs like poe bot
-	- Does not track global token consumption
 	- Uses a lot of AI-generated code
 	- The developer has never properly learned programming and does not have time
 
@@ -29,6 +28,7 @@ This is a script that uses the OpenAI API to translate epub files. Other than re
 	- Allows setting token limit per request
 	- Can estimate token cost without actual translation
 	- Can custom cache file
+	- Can track global token consumption
 
 **Command Example**:
 
@@ -55,7 +55,9 @@ Supports terms types like per, noun, loc, title, phrase, see source code for det
 
 "trans": "Pride",
 
-"class": "per"
+"class": "per",
+  
+"gender": "female"
 
 },
 
