@@ -325,6 +325,10 @@ class OpenAITrans:
 
     def translate(self, origin_content: list[str], url: str, key: str, model: str, time_out: int,
                   max_try: int = 5) -> list[str]:
+        if origin_content:
+            pass
+        else:
+            return []
         if self.use_split_cache:
             cache_translated = self.lookup_split_cache(origin_content)
             if cache_translated:
