@@ -236,6 +236,8 @@ if __name__ == '__main__':
         cache_file = f"cache/{md5}.db"
     if 'pre_trans' in config.keys() and config['pre_trans']:
         pre_translate_title = True
+    if 'max_try' in config.keys() and isinstance(config['max_try'], int):
+        oat.max_try = config['max_try']
 
     tmp_path = f".{md5}.epub"
     if os.path.exists(tmp_path) and os.path.isfile(tmp_path):

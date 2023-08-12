@@ -39,6 +39,7 @@ class OpenAITrans:
                                     "<!--end-input-->\n"
                                     "<!--start-output-->")
         self.glossary_dict = {}
+        self.max_try = 5
         self.use_split_cache = True
         self.use_page_cache = False
         self.default_cache_path: str = './cache/translation.db'
@@ -442,7 +443,7 @@ class OpenAITrans:
         for content in spilt_contents:
             start_time = time.time()
             self.logger.info(f"Total split tasks left: {task_num}/{len(spilt_contents)}")
-            translated = self.translate(content, url, key, model, time_out)
+            translated = self.translate(content, url, key, model, time_out, max_try=self.max_try)
             if isinstance(translated, list):
                 translated_contents.append(translated)
             else:
