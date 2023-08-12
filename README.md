@@ -55,7 +55,9 @@ Supports terms types like per, noun, loc, title, phrase, see source code for det
 
 "trans": "Pride",
 
-"class": "per"
+"class": "per",
+  
+"gender": "female"
 
 },
 

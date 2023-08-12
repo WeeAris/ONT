@@ -56,7 +56,9 @@ python3 ONT/main.py -b 'path/to/your/ebook.epub' -c 'path/to/your/config.json' -
 
 "trans": "普莱德",
 
-"class": "per"
+"class": "per",
+  
+"gender": "female"
 
 },
 

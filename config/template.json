@@ -7,5 +7,7 @@
     },
     "cache_method": "split",
     "cache_file": "path/to/your/cache/file.db",
-    "glossary": "path/to/your/glossary.json"
+    "glossary": "path/to/your/glossary.json",
+    "max_try": 3,
+    "pre_trans": false
 }
