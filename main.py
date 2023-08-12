@@ -184,6 +184,7 @@ if __name__ == '__main__':
 
     output_dir = "."
     cache_method = 'split'
+    pre_translate_title = False
     if args.book and os.path.exists(args.book) and args.book.endswith('.epub'):
         book_path = args.book
     else:
@@ -233,6 +234,8 @@ if __name__ == '__main__':
         cache_file = config['cache_file']
     else:
         cache_file = f"cache/{md5}.db"
+    if 'pre_trans' in config.keys() and config['pre_trans']:
+        pre_translate_title = True
 
     tmp_path = f".{md5}.epub"
     if os.path.exists(tmp_path) and os.path.isfile(tmp_path):
@@ -257,7 +260,7 @@ if __name__ == '__main__':
 
     oat.reconnect_conn(cache_file)
 
-    if orig_titles:
+    if pre_translate_title and orig_titles:
         logger.info("Translate titles before starting to translate content.\n")
         trans_titles = oat.start_task(orig_titles)
         raw_glossary = book.add_title_glossary(orig_titles, trans_titles, raw_glossary)
