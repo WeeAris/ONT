@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import time
 from sqlite3 import Connection
 
 
@@ -36,4 +37,19 @@ def write_cache(conn: Connection, target_lang: str, engine: str, model: str, ori
                                 VALUES (?, ?, ?, ?, ?)''',
                   (target_lang, engine, model, json.dumps(original_content, ensure_ascii=False),
                    json.dumps(trans_content, ensure_ascii=False)))
+    conn.commit()
+
+
+def write_failed_cache(conn: Connection, target_lang: str, engine: str, model: str, original_content: list[str],
+                       trans_content: list | dict):
+    c = conn.cursor()
+    if isinstance(trans_content,dict):
+        trans = list(trans_content.values())
+    else:
+        trans = trans_content
+    saved_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    c.execute(f'''INSERT INTO failed_cache (target, engine, model, original, trans, time)
+                                VALUES (?, ?, ?, ?, ?, ?)''',
+              (target_lang, engine, model, json.dumps(original_content, ensure_ascii=False),
+               json.dumps(trans, ensure_ascii=False), saved_time))
     conn.commit()

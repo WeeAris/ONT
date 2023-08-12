@@ -69,6 +69,14 @@ class OpenAITrans:
                     model TEXT,
                     original TEXT,
                     trans TEXT)''')
+        c.execute(f'''CREATE TABLE IF NOT EXISTS failed_cache
+                            (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            target TEXT,
+                            engine TEXT,
+                            model TEXT,
+                            original TEXT,
+                            trans TEXT,
+                            time TEXT)''')
         self.conn.commit()
 
     def lookup_split_cache(self, original_content):
@@ -88,6 +96,10 @@ class OpenAITrans:
     def write_page_cache(self, original_content, trans_content, allow_overwrite=False):
         cache_base.write_cache(self.conn, self.target_lang, 'openai', self.custom_model, original_content,
                                trans_content, 'page_cache', allow_overwrite)
+
+    def write_failed_cache(self, original_content, trans_content):
+        cache_base.write_failed_cache(self.conn, self.target_lang, 'openai', self.custom_model, original_content,
+                                      trans_content)
 
     def judge_model(self, model: str):
         g35_4k = ['gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-0301']
@@ -406,6 +418,10 @@ class OpenAITrans:
                     raise requests.exceptions.HTTPError
             except ValueError:
                 self.logger.error("Translation check failed.")
+                try:
+                    self.write_failed_cache(origin_content, translated_content)
+                except UnboundLocalError:
+                    pass
             except Exception as e:
                 self.logger.error(f"Other error: {e}")
                 continue
