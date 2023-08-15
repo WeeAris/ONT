@@ -359,10 +359,10 @@ class OpenAITrans:
             "messages": [
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_msg}],
-            "top_p": 0.8,
+            "top_p": 0.9,
             "temperature": 0.6,
-            "presence_penalty": 0.1,
-            "frequency_penalty": 0.1
+            "presence_penalty": 0.2,
+            "frequency_penalty": 0.5
         }
 
         headers = {
@@ -404,15 +404,15 @@ class OpenAITrans:
                 self.logger.error(f'Failed to decode response, status code: {response.status_code}')
                 self.logger.debug(f'Response: \n{response.text}\n')
                 if response.status_code == 429:
-                    sleep_time = (try_count + 1) ** 3 * 10.0
+                    sleep_time = (try_count + 1) ** 2 * 60.0
                     self.logger.warning(f"Reached rate limit, try sleep {sleep_time} seconds\n")
                     time.sleep(sleep_time)
                 elif response.status_code == 403:
                     self.logger.error("You seem to be blocked from accessing this API address\n")
                     raise requests.exceptions.HTTPError
-                elif response.status_code == 502 or 500:
-                    self.logger.error("The server seems to have encountered an error internally, wait 15s\n")
-                    time.sleep(15.0)
+                elif response.status_code == 502 or 500 or 524:
+                    self.logger.error("The server seems to have encountered an error internally, wait 30s\n")
+                    time.sleep(30.0)
                 elif response.status_code == 401:
                     self.logger.error("Authentication failed, you may be using an invalid API key.")
                     raise requests.exceptions.HTTPError
