@@ -24,6 +24,8 @@ def lookup_cache(conn: Connection, target_lang: str, engine: str, model: str, or
 
 def write_cache(conn: Connection, target_lang: str, engine: str, model: str, original_content: list[str],
                 trans_content: list[str], table_name: str, allow_overwrite=False):
+    if not original_content:
+        return 
     c = conn.cursor()
     result = lookup_cache(conn, target_lang, engine, model, original_content, table_name)
     if result is not None and not allow_overwrite:
@@ -43,7 +45,7 @@ def write_cache(conn: Connection, target_lang: str, engine: str, model: str, ori
 def write_failed_cache(conn: Connection, target_lang: str, engine: str, model: str, original_content: list[str],
                        trans_content: list | dict):
     c = conn.cursor()
-    if isinstance(trans_content,dict):
+    if isinstance(trans_content, dict):
         trans = list(trans_content.values())
     else:
         trans = trans_content
