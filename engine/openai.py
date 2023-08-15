@@ -5,6 +5,7 @@ import time
 from string import Template
 
 import requests
+import sseclient
 import tiktoken
 from requests import Response
 
@@ -39,7 +40,8 @@ class OpenAITrans:
                                     "<!--end-input-->\n"
                                     "<!--start-output-->")
         self.glossary_dict = {}
-        self.max_try = 5
+        self.max_try = 3
+        self.enable_stream = True
         self.use_split_cache = True
         self.use_page_cache = False
         self.default_cache_path: str = './cache/translation.db'
@@ -362,7 +364,8 @@ class OpenAITrans:
             "top_p": 0.9,
             "temperature": 0.6,
             "presence_penalty": 0.2,
-            "frequency_penalty": 0.5
+            "frequency_penalty": 0.5,
+            "stream": self.enable_stream
         }
 
         headers = {
@@ -372,25 +375,49 @@ class OpenAITrans:
         try_count = 0
         while try_count < max_try:
             try:
-                response: Response = requests.post(url, data=json.dumps(payload), headers=headers, timeout=time_out)
-                res = response.json()
-                finish_reason = res['choices'][0]['finish_reason']
+                finish_reason = ''
+                total_num = 0
+                prompt_num = 0
+                completion_num = 0
+                if self.enable_stream:
+                    self.logger.info("Start to stream requesst.")
+                    collected_messages = []
+                    response: Response = requests.post(url, data=json.dumps(payload), headers=headers, stream=True)
+                    client = sseclient.SSEClient(response)
+                    for event in client.events():
+                        if event.data != '[DONE]':
+                            chunk_data = json.loads(event.data)
+                            self.logger.debug(f"Chunk data: {chunk_data}\n")
+                            chunk_message = chunk_data['choices'][0]['delta']
+                            self.logger.debug(f"Chunk msg: {chunk_message}\n")
+                            collected_messages.append(chunk_message)
+                            if chunk_data['choices'][0]['finish_reason'] is not None:
+                                finish_reason = chunk_data['choices'][0]['finish_reason']
+                    full_content = ''.join([m.get('content', '') for m in collected_messages])
+                    self.logger.debug(f"Full content: {full_content}")
+                else:
+                    response: Response = requests.post(url, data=json.dumps(payload), headers=headers, timeout=time_out)
+                    res = response.json()
+                    finish_reason = res['choices'][0]['finish_reason']
+                    full_content: str | dict = res['choices'][0]['message']['content']
+                    total_num = res['usage']['total_tokens']
+                    prompt_num = res['usage']['prompt_tokens']
+                    completion_num = res['usage']['completion_tokens']
+
                 if finish_reason == "stop":
                     pass
                 elif finish_reason == "length":
                     self.logger.error(
                         f"The max_tokens limit has been reached, please set a smaller limit_tokens value.")
                     return origin_content
-
-                result: str | dict = res['choices'][0]['message']['content']
-
-                self.logger.info(f"Total token count by response: {res['usage']['total_tokens']}")
-                self.prompt_token_cost += res['usage']['prompt_tokens']
-                self.completion_token_cost += res['usage']['completion_tokens']
-                if not isinstance(result, dict):
-                    translated_content = self.parse_result_msg(result)
+                if total_num:
+                    self.logger.info(f"Total token count by response: {total_num}")
+                    self.prompt_token_cost += prompt_num
+                    self.completion_token_cost += completion_num
+                if not isinstance(full_content, dict):
+                    translated_content = self.parse_result_msg(full_content)
                 else:
-                    translated_content = result
+                    translated_content = full_content
 
                 translated_content = self.check_translation(origin_content, translated_content)
                 translated = list(translated_content.values())

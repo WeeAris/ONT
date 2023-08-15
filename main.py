@@ -219,6 +219,10 @@ if __name__ == '__main__':
 
     oat.api_base = config['openai']['api_base']
     oat.api_key = config['openai']['api_key']
+
+    if 'disable_stream' in config['openai'].keys() and config['openai']['disable_stream'] is True:
+        oat.enable_stream = False
+
     if 'token_limit' in config['openai'].keys():
         token_limit = config['openai']['token_limit']
         if isinstance(token_limit, int):
