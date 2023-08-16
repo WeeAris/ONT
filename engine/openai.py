@@ -392,7 +392,7 @@ class OpenAITrans:
             self.logger.info(f'Glossary: \n{fin_glossary}')
         sys_prompt = self.gen_sys_prompt(fin_glossary)
         user_msg = self.gen_user_message(origin_content)
-        self.logger.info(f"Original content len: {len(origin_content)}")
+        self.logger.info(f"The original totals {len(origin_content)} lines.")
 
         if self.enable_stream or self.custom_sys_prompt:
             presence_penalty = 0.2
@@ -455,7 +455,7 @@ class OpenAITrans:
                         f"The max_tokens limit has been reached, please set a smaller limit_tokens value.")
                     return origin_content
                 if total_num:
-                    self.logger.info(f"Total token count by response: {total_num}")
+                    self.logger.info(f"Total tokens cost: {total_num}")
                     self.prompt_token_cost += prompt_num
                     self.completion_token_cost += completion_num
                 if not isinstance(full_content, dict):
@@ -465,7 +465,7 @@ class OpenAITrans:
 
                 translated_content = self.check_translation(origin_content, translated_content)
                 translated = list(translated_content.values())
-                self.logger.info(f"Translated content len: {len(translated)}")
+                self.logger.info(f"The translation totals {len(translated)} lines.")
                 # 成功翻译，缓存后返回结果
                 self.write_split_cache(origin_content, translated)
                 self.logger.info(f"The translation was successful and retried {retry_count} times.")
