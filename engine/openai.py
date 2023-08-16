@@ -67,8 +67,7 @@ class OpenAITrans:
         )
         self.default_user_prompt = ("<!--start-input-->\n"
                                     "$origin_text\n"
-                                    "<!--end-input-->\n"
-                                    "<!--start-output-->")
+                                    "<!--end-input-->")
         self.glossary_dict = {}
         self.max_try = 3
         self.enable_stream = True
@@ -162,7 +161,7 @@ class OpenAITrans:
         sys_prompt = self.gen_sys_prompt()
         user_prompt = self.gen_user_message(["This is a user message"])
         prompt_tokens = len(self.enc.encode(sys_prompt)) + len(self.enc.encode(user_prompt))
-        limit_token = (limit_token / 10 * 7.5 - prompt_tokens) / 2
+        limit_token = (limit_token * 0.75 - prompt_tokens) / 2
 
         if self.custom_limit_tokens == 0:
             self.logger.info(f'The value of limit_tokens has been set to default: {limit_token}')
@@ -178,7 +177,7 @@ class OpenAITrans:
             for para in page:
                 para_token = len(self.enc.encode(para))
                 if para_token <= limit_token:
-                    if len(self.enc.encode(str(tmp_lst + [para]))) <= limit_token:
+                    if len(self.enc.encode("\n".join(tmp_lst + [para]))) <= limit_token:
                         tmp_lst.append(para)
                     else:
                         result.append(tmp_lst)
@@ -336,22 +335,22 @@ class OpenAITrans:
         # 检查译文
         # 检查译文中是否出现了不必要的复读机行为😓
         source_set = set()
-        source_repeat = 0
-        translation_set = set()
-        translation_repeat = 0
+        source_rp = 0
+        trans_set = set()
+        trans_rp = 0
         for para in origin_content:
             previous_len = len(source_set)
             source_set.add(para)
             if len(source_set) == previous_len:
-                source_repeat += 1
+                source_rp += 1
         for idx, para in translated_content.items():
-            previous_len = len(translation_set)
-            translation_set.add(para)
-            if len(translation_set) == previous_len:
-                translation_repeat += 1
-        if source_repeat != translation_repeat:
+            previous_len = len(trans_set)
+            trans_set.add(para)
+            if len(trans_set) == previous_len:
+                trans_rp += 1
+        if source_rp != trans_rp:
             self.logger.error(
-                f"There may be unnecessary repeat or missing in the translation: {source_repeat} - {translation_repeat}")
+                f"There may be unnecessary repeat or missing in the translation: {source_rp} - {trans_rp}")
             raise ValueError
         # 检查译文是否有缺失
         miss_count = []
@@ -417,13 +416,10 @@ class OpenAITrans:
             "Content-Type": "application/json",
             "Authorization": f'Bearer {key}'
         }
-        try_count = 0
-        while try_count < max_try:
+        retry_count = 0
+        while retry_count < max_try:
             try:
                 finish_reason = ''
-                total_num = 0
-                prompt_num = 0
-                completion_num = 0
                 if self.enable_stream:
                     self.logger.info("Start to stream requesst.")
                     collected_messages = []
@@ -472,6 +468,7 @@ class OpenAITrans:
                 self.logger.info(f"Translated content len: {len(translated)}")
                 # 成功翻译，缓存后返回结果
                 self.write_split_cache(origin_content, translated)
+                self.logger.info(f"The translation was successful and retried {retry_count} times.")
                 return translated
             except requests.exceptions.Timeout:
                 self.logger.error(f"Translate request to f{url} timeout\n")
@@ -479,7 +476,7 @@ class OpenAITrans:
                 self.logger.error(f'Failed to decode response, status code: {response.status_code}')
                 self.logger.debug(f'Response: \n{response.text}\n')
                 if response.status_code == 429:
-                    sleep_time = (try_count + 1) ** 2 * 60.0
+                    sleep_time = (retry_count + 1) ** 2 * 60.0
                     self.logger.warning(f"Reached rate limit, try sleep {sleep_time} seconds\n")
                     time.sleep(sleep_time)
                 elif response.status_code == 403:
@@ -501,7 +498,7 @@ class OpenAITrans:
                 self.logger.error(f"Other error: {e}")
                 continue
 
-            try_count += 1
+            retry_count += 1
 
         self.logger.error("Exceeded max retry count, giving up. \n")
         self.logger.debug(f"Original: {origin_content}")
