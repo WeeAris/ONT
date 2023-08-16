@@ -223,6 +223,9 @@ if __name__ == '__main__':
     if 'disable_stream' in config['openai'].keys() and config['openai']['disable_stream'] is True:
         oat.enable_stream = False
 
+    if 'custom_prompt' in config['openai'].keys() and config['openai']['custom_prompt']:
+        oat.custom_sys_prompt = config['openai']['custom_prompt']
+
     if 'token_limit' in config['openai'].keys():
         token_limit = config['openai']['token_limit']
         if isinstance(token_limit, int):

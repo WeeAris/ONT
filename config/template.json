@@ -3,7 +3,9 @@
         "api_base": "https://api.openai.com",
         "api_key": "your-openai-api-key",
         "model": "gpt-3.5-turbo-0613",
-        "token_limit": 1250
+        "token_limit": 1250,
+        "disable_stream": false,
+        "custom_prompt": ""
     },
     "cache_method": "split",
     "cache_file": "path/to/your/cache/file.db",
