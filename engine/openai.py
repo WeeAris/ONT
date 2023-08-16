@@ -35,6 +35,36 @@ class OpenAITrans:
             "Once the translation is complete, take the time to check the translation for readability and accuracy. Translated text needs to be provided in the same JSON structure as received and maintain the original structure of the key-value pairs in the original JSON text. You should especially pay attention to escaping and completeness of symbols.\n"
             "Please do not worry about your translation being interrupted, and try to output your translation as much as possible. \n"
         )
+        self.default_sys_prompt_stream = (
+            "## Role: Translation Specialist\n"
+            "\n"
+            "## Profile:\n"
+            "- author: WeeAris\n"
+            "- version: 0.5\n"
+            "- language: $target_lang\n"
+            "- description: I'm an excellent and meticulous translator who can translate anything the user types into $target_lang.\n"
+            "\n"
+            "## Skills:\n"
+            "- Proficient in $target_lang, proficient in languages of the world, understand the culture and allusions of various languages, understand the nuances of various languages.\n"
+            "- Have sufficient experience in translating various genres, and are very good at contextual understanding and plot reasoning.\n"
+            "- Specializes in the use of glossaries to ensure consistency and completeness of translations.\n"
+            "- Specializes in character relationships and tone of voice in translation.\n"
+            "\n"
+            "## Goals:\n"
+            "- Translate anything the user types into $target_lang. \n"
+            "- Take time to ensure that the translations both read naturally and are in keeping with the spirit and flavor of the original.\n"
+            "- Provide accurate and creative translations to user finally.\n"
+            "\n"
+            "## Constrains:\n"
+            "- Do not provide any additional explanations or add content that is not in the original text. \n"
+            "- Do not modify typography or convert punctuation if it is not necessary.\n"
+            "- Use translations from the glossary wherever possible, then consider using agreed translations, and finally consider harmonic translations.\n"
+            "- Neither repeat what has already been translated nor omit what has not yet been translated, including which in notes and brackets.\n"
+            "\n"
+            "$glossary \n"
+            "## Initialization:\n"
+            "Directly output $target_lang translation results as much as possible."
+        )
         self.default_user_prompt = ("<!--start-input-->\n"
                                     "$origin_text\n"
                                     "<!--end-input-->\n"
@@ -207,7 +237,7 @@ class OpenAITrans:
     @staticmethod
     def formatting_glossary(raw_glossary: dict) -> dict:
         formatted = {}
-        formatted_template = Template('   - the $td "$original" translates to "$trans"')
+        formatted_template = Template('- the $td "$original" translates to "$trans"')
         for term in raw_glossary.keys():
             term_dict = raw_glossary[term]
             term_class = term_dict['class']
@@ -231,22 +261,30 @@ class OpenAITrans:
             formatted[term] = term_str
         return formatted
 
-    @staticmethod
-    def select_glossary(formatted_glossary: dict, origin_content: list[str]):
-        fin_glossary = ["The glossary includes:"]
+    def select_glossary(self, formatted_glossary: dict, origin_content: list[str]):
+        if self.enable_stream and not self.custom_sys_prompt:
+            fin_glossary = ["## Glossary:"]
+        else:
+            fin_glossary = ["The glossary includes:"]
         content = str(origin_content)
         for term, trans in formatted_glossary.items():
             if term in content:
                 fin_glossary.append(trans)
-        return "\n".join(fin_glossary)
+        if len(fin_glossary) > 1:
+            return "\n".join(fin_glossary)
+        else:
+            return ""
 
     def gen_sys_prompt(self, glossary=""):
-        if self.custom_sys_prompt and "$target_lang" in self.custom_sys_prompt:
+        if self.custom_sys_prompt != "":
             template = Template(self.custom_sys_prompt)
-            if glossary and "$glossary" in self.custom_sys_prompt:
+            if "$glossary" in self.custom_sys_prompt:
                 prompt = template.substitute(target_lang=self.target_lang, glossary=glossary)
             else:
                 prompt = template.substitute(target_lang=self.target_lang)
+        elif self.enable_stream:
+            template = Template(self.default_sys_prompt_stream)
+            prompt = template.substitute(target_lang=self.target_lang, glossary=glossary)
         else:
             schema = r'''{"type": "object", "patternProperties": {"^[0-9]+$": {"type": "string", "title": "Text content of each line", "description": "The key represents line number, value represents text content of that line"}}, "additionalProperties": false}'''
             schema_template = Template('The json schema is: $schema')
@@ -257,25 +295,29 @@ class OpenAITrans:
         return prompt
 
     def gen_user_message(self, origin_content: list[str]):
-        if self.custom_user_prompt and "$origin_text" in self.custom_user_prompt:
+        template = Template(self.default_user_prompt)
+        if self.enable_stream or self.custom_sys_prompt:
             origin_text = "\n".join(origin_content)
-            template = Template(self.default_user_prompt)
             msg = template.substitute(origin_text=origin_text)
         else:
             origin_text_dict = {}
             for i, para in enumerate(origin_content):
                 origin_text_dict[str(i + 1)] = para
-            template = Template(self.default_user_prompt)
             msg = template.substitute(origin_text=origin_text_dict)
         return msg
 
     def parse_result_msg(self, result_msg: str) -> dict:
         result = {}
-        if not self.custom_sys_prompt:
-            result_msg = result_msg.strip()
-            result_msg = result_msg.lstrip("<!--start-output-->")
-            result_msg = result_msg.rstrip("<!--end-output-->")
-            result_msg = result_msg.strip()
+        result_msg = result_msg.strip()
+        result_msg = result_msg.lstrip("<!--start-output-->")
+        result_msg = result_msg.rstrip("<!--end-output-->")
+        result_msg = result_msg.strip()
+        if self.custom_sys_prompt or self.enable_stream:
+            result_list = result_msg.splitlines()
+            result_list = [para.rstrip() for para in result_list if para.rstrip()]
+            for idx, para in enumerate(result_list):
+                result[str(idx + 1)] = para
+        else:
             try:
                 result_dict: dict = json.loads(result_msg)
             except json.decoder.JSONDecodeError as e:
@@ -287,11 +329,6 @@ class OpenAITrans:
             else:
                 self.logger.error(f"The translation result message cannot be converted to a dict type.")
                 raise TypeError
-        else:
-            result_list = result_msg.splitlines()
-            result_list = [para.rstrip() for para in result_list if para.rstrip()]
-            for idx, para in enumerate(result_list):
-                result[str(idx + 1)] = para
 
         return result
 
@@ -352,19 +389,27 @@ class OpenAITrans:
 
         self.logger.info("Do not allow use cached results or no cache hit, start the translation request.")
         fin_glossary = self.select_glossary(self.glossary_dict, origin_content)
-        self.logger.info(f'Glossary: \n{fin_glossary}')
+        if fin_glossary:
+            self.logger.info(f'Glossary: \n{fin_glossary}')
         sys_prompt = self.gen_sys_prompt(fin_glossary)
         user_msg = self.gen_user_message(origin_content)
         self.logger.info(f"Original content len: {len(origin_content)}")
+
+        if self.enable_stream or self.custom_sys_prompt:
+            presence_penalty = 0.2
+            frequency_penalty = 0.4
+        else:
+            presence_penalty = 0.1
+            frequency_penalty = 0.1
         payload = {
             "model": model,
             "messages": [
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_msg}],
-            "top_p": 0.9,
+            "top_p": 1,
             "temperature": 0.6,
-            "presence_penalty": 0.2,
-            "frequency_penalty": 0.5,
+            "presence_penalty": presence_penalty,
+            "frequency_penalty": frequency_penalty,
             "stream": self.enable_stream
         }
 
@@ -387,14 +432,17 @@ class OpenAITrans:
                     for event in client.events():
                         if event.data != '[DONE]':
                             chunk_data = json.loads(event.data)
-                            self.logger.debug(f"Chunk data: {chunk_data}\n")
+                            # self.logger.debug(f"Chunk data: {chunk_data}\n")
                             chunk_message = chunk_data['choices'][0]['delta']
-                            self.logger.debug(f"Chunk msg: {chunk_message}\n")
+                            # self.logger.debug(f"Chunk msg: {chunk_message}\n")
                             collected_messages.append(chunk_message)
                             if chunk_data['choices'][0]['finish_reason'] is not None:
                                 finish_reason = chunk_data['choices'][0]['finish_reason']
                     full_content = ''.join([m.get('content', '') for m in collected_messages])
-                    self.logger.debug(f"Full content: {full_content}")
+                    prompt_num = len(self.enc.encode(sys_prompt + user_msg))
+                    completion_num = len(self.enc.encode(full_content))
+                    total_num = prompt_num + completion_num
+                    # self.logger.debug(f"Full content: {full_content}")
                 else:
                     response: Response = requests.post(url, data=json.dumps(payload), headers=headers, timeout=time_out)
                     res = response.json()
