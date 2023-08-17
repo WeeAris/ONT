@@ -554,7 +554,9 @@ class OpenAITrans:
             end_time = time.time()
             self.logger.info(f"A split task took time: {float(end_time - start_time)}")
 
-        self.logger.info(f"Failed tasks num: {self.failed}/{len(spilt_contents)}")
+        if self.failed > 0:
+            self.logger.warning(f"Failed tasks num: {self.failed}/{len(spilt_contents)}\n")
+
         no_cache_pgs_trans = self.restore_task(no_cache_pgs_orig, translated_contents)
         # 还原索引
         finished_trans = []
