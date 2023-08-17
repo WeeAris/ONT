@@ -78,6 +78,7 @@ class OpenAITrans:
         self.enable_repeat_check = True
         self.glossary_dict = {}
         self.max_try = 3
+        self.failed = 0
         self.enable_stream = True
         self.use_split_cache = True
         self.use_page_cache = False
@@ -320,50 +321,49 @@ class OpenAITrans:
     def parse_result_msg(self, result_msg: str) -> dict:
         result = {}
         result_msg = result_msg.strip()
-        result_msg = result_msg.lstrip("<!--start-output-->")
-        result_msg = result_msg.rstrip("<!--end-output-->")
+        result_msg = result_msg.strip("<!--start-output-->")
+        result_msg = result_msg.strip("<!--end-output-->")
         result_msg = result_msg.strip()
-        if self.custom_sys_prompt or self.enable_stream:
-            result_list = result_msg.splitlines()
-            result_list = [para.rstrip() for para in result_list if para.rstrip()]
-            for idx, para in enumerate(result_list):
-                result[str(idx + 1)] = para
-        else:
+        if self.enable_dict_fmt:
             try:
                 result_dict: dict = json.loads(result_msg)
             except json.decoder.JSONDecodeError as e:
-                self.logger.error(f'Failed to parsed translation.')
-                self.logger.debug(f'Translation: \n{result_msg}\n')
-                raise e
+                if "Expecting property name enclosed in double quotes" in e.msg:
+                    self.logger.warning('A quote error was detected and will attempt to fix it.')
+                    try:
+                        result_dict: dict = json.loads(result_msg.replace("'", "\""))
+                    except json.decoder.JSONDecodeError as e:
+                        self.logger.error(f'Attempts to fix failed, translation message: \n{result_msg}\n')
+                        raise e
+                else:
+                    self.logger.error("Format error, translation result is not in valid JSON format.")
+                    raise e
+
             if isinstance(result_dict, dict):
                 result = result_dict
             else:
                 self.logger.error(f"The translation result message cannot be converted to a dict type.")
                 raise TypeError
+        else:
+            result_list = result_msg.splitlines()
+            result_list = [para.rstrip() for para in result_list if para.rstrip()]
+            for idx, para in enumerate(result_list):
+                result[str(idx + 1)] = para
 
         return result
 
     def check_translation(self, origin_content: list[str], translated_content: dict):
         # 检查译文
         # 检查译文中是否出现了不必要的复读机行为😓
-        source_set = set()
-        source_rp = 0
-        trans_set = set()
-        trans_rp = 0
-        for para in origin_content:
-            previous_len = len(source_set)
-            source_set.add(para)
-            if len(source_set) == previous_len:
-                source_rp += 1
-        for idx, para in translated_content.items():
-            previous_len = len(trans_set)
-            trans_set.add(para)
-            if len(trans_set) == previous_len:
-                trans_rp += 1
-        if source_rp != trans_rp:
-            self.logger.error(
-                f"There may be unnecessary repeat or missing in the translation: {source_rp} - {trans_rp}")
-            raise ValueError
+        if self.enable_repeat_check:
+            source_set = set(origin_content)
+            source_rp = len(origin_content) - len(source_set)
+            trans_set = set(translated_content.values())
+            trans_rp = len(translated_content.values()) - len(trans_set)
+            if source_rp != trans_rp:
+                self.logger.error(
+                    f"There may be unnecessary repeat or missing in the translation: {source_rp} - {trans_rp}")
+                raise ValueError
         # 检查译文是否有缺失
         miss_count = []
         for i, para in enumerate(origin_content):
@@ -513,6 +513,7 @@ class OpenAITrans:
             retry_count += 1
 
         self.logger.error("Exceeded max retry count, giving up. \n")
+        self.failed += 1
         self.logger.debug(f"Original: {origin_content}")
         return origin_content
 
@@ -553,6 +554,7 @@ class OpenAITrans:
             end_time = time.time()
             self.logger.info(f"A split task took time: {float(end_time - start_time)}")
 
+        self.logger.info(f"Failed tasks num: {self.failed}/{len(spilt_contents)}")
         no_cache_pgs_trans = self.restore_task(no_cache_pgs_orig, translated_contents)
         # 还原索引
         finished_trans = []
