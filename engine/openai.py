@@ -40,15 +40,15 @@ class OpenAITrans:
             "\n"
             "## Profile:\n"
             "- author: WeeAris\n"
-            "- version: 0.5\n"
+            "- version: 0.8\n"
             "- language: $target_lang\n"
             "- description: I'm an excellent and meticulous translator who can translate anything the user types into $target_lang.\n"
             "\n"
             "## Skills:\n"
-            "- Proficient in $target_lang, proficient in languages of the world, understand the culture and allusions of various languages, understand the nuances of various languages.\n"
-            "- Have sufficient experience in translating various genres, and are very good at contextual understanding and plot reasoning.\n"
-            "- Specializes in the use of glossaries to ensure consistency and completeness of translations.\n"
-            "- Specializes in character relationships and tone of voice in translation.\n"
+            "- Proficient in $target_lang, proficient in various languages, understand the culture and allusions of various languages, and good at dealing with the nuances of various languages.\n"
+            "- Experienced in translating a wide range of genres, good at understanding the meaning of the text and reasoning about the plot.\n"
+            "- Good use of glossaries to ensure consistency and completeness of translations.\n"
+            "- Very sensitive to the self-references and emotions of characters in dialogues, and good at distinguishing character relationships in complex dialogues.\n"
             "\n"
             "## Goals:\n"
             "- Translate anything the user types into $target_lang. \n"
@@ -58,16 +58,24 @@ class OpenAITrans:
             "## Constrains:\n"
             "- Do not provide any additional explanations or add content that is not in the original text. \n"
             "- Do not modify typography or convert punctuation if it is not necessary.\n"
-            "- Use translations from the glossary wherever possible, then consider using agreed translations, and finally consider harmonic translations.\n"
+            "- Whenever possible, use the translation in the glossary, and if it is not in the glossary, then consider an agreed-upon translation, and finally consider the use of a harmonic translation.\n"
             "- Neither repeat what has already been translated nor omit what has not yet been translated, including which in notes and brackets.\n"
+            "- Arabic numerals, Roman numerals and special characters that cannot be translated remain unchanged.\n"
             "\n"
             "$glossary \n"
+            "\n"
+            "$fmt"
+            "## Reminder:\n"
+            "Before outputting translation results to users, you will always remind yourself of your role settings, goals and constraints.\n"
+            "\n"
             "## Initialization:\n"
-            "Directly output $target_lang translation results as much as possible."
+            "Directly output $target_lang translation results as much as possible with the same structure and format as received."
         )
         self.default_user_prompt = ("<!--start-input-->\n"
                                     "$origin_text\n"
                                     "<!--end-input-->")
+        self.enable_dict_fmt = True
+        self.enable_repeat_check = True
         self.glossary_dict = {}
         self.max_try = 3
         self.enable_stream = True
@@ -261,10 +269,11 @@ class OpenAITrans:
         return formatted
 
     def select_glossary(self, formatted_glossary: dict, origin_content: list[str]):
-        if self.enable_stream and not self.custom_sys_prompt:
-            fin_glossary = ["## Glossary:"]
-        else:
+        if (not self.custom_sys_prompt or "## " not in self.custom_sys_prompt) and (
+                self.custom_sys_prompt or not self.enable_stream):
             fin_glossary = ["The glossary includes:"]
+        else:
+            fin_glossary = ["## Glossary:"]
         content = str(origin_content)
         for term, trans in formatted_glossary.items():
             if term in content:
@@ -276,33 +285,36 @@ class OpenAITrans:
 
     def gen_sys_prompt(self, glossary=""):
         if self.custom_sys_prompt != "":
-            template = Template(self.custom_sys_prompt)
-            if "$glossary" in self.custom_sys_prompt:
-                prompt = template.substitute(target_lang=self.target_lang, glossary=glossary)
-            else:
-                prompt = template.substitute(target_lang=self.target_lang)
+            prompt_tp = self.custom_sys_prompt
         elif self.enable_stream:
-            template = Template(self.default_sys_prompt_stream)
-            prompt = template.substitute(target_lang=self.target_lang, glossary=glossary)
+            prompt_tp = self.default_sys_prompt_stream
         else:
-            schema = r'''{"type": "object", "patternProperties": {"^[0-9]+$": {"type": "string", "title": "Text content of each line", "description": "The key represents line number, value represents text content of that line"}}, "additionalProperties": false}'''
-            schema_template = Template('The json schema is: $schema')
-            json_schema = schema_template.substitute(schema=schema)
+            prompt_tp = self.default_sys_prompt
+        template = Template(prompt_tp)
 
-            template = Template(self.default_sys_prompt)
+        if self.enable_dict_fmt and "$fmt" in prompt_tp:
+            schema = r'''{"type": "object", "patternProperties": {"^[0-9]+$": {"type": "string", "title": "Text content of each line", "description": "The key represents line number, value represents text content of that line"}}, "additionalProperties": false}'''
+            if "##" in prompt_tp:
+                schema_template = Template('## Format: \n$schema \n\n')
+            else:
+                schema_template = Template('The json schema is: $schema \n\n')
+            json_schema = schema_template.substitute(schema=schema)
             prompt = template.substitute(target_lang=self.target_lang, glossary=glossary, fmt=json_schema)
+        else:
+            prompt = template.substitute(target_lang=self.target_lang, glossary=glossary, fmt="")
+
         return prompt
 
     def gen_user_message(self, origin_content: list[str]):
         template = Template(self.default_user_prompt)
-        if self.enable_stream or self.custom_sys_prompt:
-            origin_text = "\n".join(origin_content)
-            msg = template.substitute(origin_text=origin_text)
-        else:
+        if self.enable_dict_fmt:
             origin_text_dict = {}
             for i, para in enumerate(origin_content):
                 origin_text_dict[str(i + 1)] = para
             msg = template.substitute(origin_text=origin_text_dict)
+        else:
+            origin_text = "\n".join(origin_content)
+            msg = template.substitute(origin_text=origin_text)
         return msg
 
     def parse_result_msg(self, result_msg: str) -> dict:
@@ -394,12 +406,12 @@ class OpenAITrans:
         user_msg = self.gen_user_message(origin_content)
         self.logger.info(f"The original totals {len(origin_content)} lines.")
 
-        if self.enable_stream or self.custom_sys_prompt:
+        if self.enable_stream and not self.enable_dict_fmt:
             presence_penalty = 0.2
             frequency_penalty = 0.4
         else:
             presence_penalty = 0.1
-            frequency_penalty = 0.1
+            frequency_penalty = 0.2
         payload = {
             "model": model,
             "messages": [
@@ -428,9 +440,7 @@ class OpenAITrans:
                     for event in client.events():
                         if event.data != '[DONE]':
                             chunk_data = json.loads(event.data)
-                            # self.logger.debug(f"Chunk data: {chunk_data}\n")
                             chunk_message = chunk_data['choices'][0]['delta']
-                            # self.logger.debug(f"Chunk msg: {chunk_message}\n")
                             collected_messages.append(chunk_message)
                             if chunk_data['choices'][0]['finish_reason'] is not None:
                                 finish_reason = chunk_data['choices'][0]['finish_reason']
@@ -438,7 +448,6 @@ class OpenAITrans:
                     prompt_num = len(self.enc.encode(sys_prompt + user_msg))
                     completion_num = len(self.enc.encode(full_content))
                     total_num = prompt_num + completion_num
-                    # self.logger.debug(f"Full content: {full_content}")
                 else:
                     response: Response = requests.post(url, data=json.dumps(payload), headers=headers, timeout=time_out)
                     res = response.json()
@@ -458,17 +467,20 @@ class OpenAITrans:
                     self.logger.info(f"Total tokens cost: {total_num}")
                     self.prompt_token_cost += prompt_num
                     self.completion_token_cost += completion_num
-                if not isinstance(full_content, dict):
+                if isinstance(full_content, str):
                     translated_content = self.parse_result_msg(full_content)
-                else:
+                elif isinstance(full_content, dict):
                     translated_content = full_content
+                else:
+                    self.logger.error(f"Can not parse type of content: \n{full_content}")
+                    raise TypeError
 
                 translated_content = self.check_translation(origin_content, translated_content)
                 translated = list(translated_content.values())
                 self.logger.info(f"The translation totals {len(translated)} lines.")
                 # 成功翻译，缓存后返回结果
                 self.write_split_cache(origin_content, translated)
-                self.logger.info(f"The translation was successful and retried {retry_count} times.")
+                self.logger.info(f"The translation was successful with retried {retry_count} times.\n")
                 return translated
             except requests.exceptions.Timeout:
                 self.logger.error(f"Translate request to f{url} timeout\n")
@@ -488,8 +500,8 @@ class OpenAITrans:
                 elif response.status_code == 401:
                     self.logger.error("Authentication failed, you may be using an invalid API key.")
                     raise requests.exceptions.HTTPError
-            except ValueError:
-                self.logger.error("Translation check failed.")
+            except ValueError as e:
+                self.logger.error(f"Translation check failed: {e}")
                 try:
                     self.write_failed_cache(origin_content, translated_content)
                 except UnboundLocalError:
