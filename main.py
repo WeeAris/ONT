@@ -213,8 +213,8 @@ if __name__ == '__main__':
 
     oat.use_unofficial_model = config['openai'].get('use_unofficial_model', False)
     oat.custom_model = config['openai'].get('model', oat.default_model)
-    oat.enable_stream = config['openai'].get('disable_stream', True)
-    oat.enable_dict_fmt = config['openai'].get('disable_dict_fmt', True)
+    oat.enable_stream = config['openai'].get('enable_stream', True)
+    oat.enable_dict_fmt = config['openai'].get('enable_dict_fmt', True)
     oat.custom_sys_prompt = config['openai'].get('custom_prompt', '')
 
     if 'token_limit' in config['openai'].keys() and isinstance(config['openai']['token_limit'], int):
