@@ -183,7 +183,7 @@ class OpenAITrans:
         return model, limit_tokens, time_out
 
     def split_task(self, original_pages: list[list[str]], limit_token: int) -> list[list[str]]:
-        if self.use_unofficial_model and self.custom_limit_tokens:
+        if self.use_unofficial_model:
             pass
         else:
             sys_prompt = self.gen_sys_prompt()
