@@ -13,15 +13,18 @@ from tools import load_config, cache_base, extra
 
 
 class OpenAITrans:
-    def __init__(self, model, target_lang):
+    def __init__(self, target_lang):
         load_config.configure_logging()
         self.logger = logging.getLogger(__name__)
         self.enc = tiktoken.get_encoding("cl100k_base")
         self.target_lang = target_lang
         self.api_key = ''
         self.api_base = "https://api.openai.com"
+        self.api_path = "/v1/chat/completions"
+        self.api_url = self.api_base + self.api_path
         self.default_model = 'gpt-3.5-turbo'
-        self.custom_model = model
+        self.custom_model = ""
+        self.use_unofficial_model = False
         self.default_sys_prompt = (
             "You need to translate the text provided in JSON format to $target_lang. The JSON text consists of multiple key-value pairs, where each key represents a paragraph number and the corresponding value represents the content of a paragraph in the original text. \n"
             "$fmt \n"
@@ -141,44 +144,60 @@ class OpenAITrans:
         cache_base.write_failed_cache(self.conn, self.target_lang, 'openai', self.custom_model, original_content,
                                       trans_content)
 
+    @staticmethod
+    def is_official_model(model: str):
+        models = {
+            'g35_4k': ['gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-0301'],
+            'g35_16k': ['gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-16k-0301'],
+            'g4_8k': ['gpt-4', 'gpt-4-0613', 'gpt-4-0314'],
+            'g4_32k': ['gpt-4-32k', 'gpt-4-32k-0613', 'gpt-4-32k-0314']
+        }
+
+        for key, value in models.items():
+            if model in value:
+                return key
+
+        return False
+
     def judge_model(self, model: str):
-        g35_4k = ['gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-0301']
-        g35_16k = ['gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-16k-0301']
-        g4_8k = ['gpt-4', 'gpt-4-0613', 'gpt-4-0314']
-        g4_32k = ['gpt-4-32k', 'gpt-4-32k-0613', 'gpt-4-32k-0314']
-
-        if model in g35_4k:
-            limit_tokens = 4096
-            time_out = 120
-        elif model in g35_16k:
-            limit_tokens = 16384
-            time_out = 240
-        elif model in g4_8k:
-            limit_tokens = 8192
-            time_out = 300
-        elif model in g4_32k:
-            limit_tokens = 32768
-            time_out = 750
+        model_type = self.is_official_model(model)
+        if not model_type:
+            if self.use_unofficial_model is True and self.custom_limit_tokens > 0:
+                limit_tokens = self.custom_limit_tokens
+                time_out = 750
+            else:
+                raise ValueError
         else:
-            self.logger.warning(f"Invalid model \"{model}\", fallback to {self.default_model}")
-            model = self.default_model
-            model, limit_tokens, time_out = self.judge_model(model)
-
+            limit_tokens = {
+                "g35_4k": 4096,
+                "g35_16k": 16384,
+                "g4_8k": 8192,
+                "g4_32k": 32768
+            }[model_type]
+            time_out = {
+                "g35_4k": 120,
+                "g35_16k": 240,
+                "g4_8k": 300,
+                "g4_32k": 750
+            }[model_type]
         return model, limit_tokens, time_out
 
     def split_task(self, original_pages: list[list[str]], limit_token: int) -> list[list[str]]:
-        sys_prompt = self.gen_sys_prompt()
-        user_prompt = self.gen_user_message(["This is a user message"])
-        prompt_tokens = len(self.enc.encode(sys_prompt)) + len(self.enc.encode(user_prompt))
-        limit_token = (limit_token * 0.75 - prompt_tokens) / 2
+        if self.use_unofficial_model and self.custom_limit_tokens:
+            pass
+        else:
+            sys_prompt = self.gen_sys_prompt()
+            user_prompt = self.gen_user_message(["This is a user message"])
+            prompt_tokens = len(self.enc.encode(sys_prompt)) + len(self.enc.encode(user_prompt))
+            limit_token = (limit_token * 0.75 - prompt_tokens) / 2
 
-        if self.custom_limit_tokens == 0:
-            self.logger.info(f'The value of limit_tokens has been set to default: {limit_token}')
-        elif 0 < self.custom_limit_tokens <= limit_token:
-            limit_token = self.custom_limit_tokens
-        elif self.custom_limit_tokens > limit_token:
-            self.logger.warning('The value of custom_limit_tokens exceeds the default value.')
-            limit_token = self.custom_limit_tokens
+            if self.custom_limit_tokens == 0:
+                self.logger.info(f'The value of limit_tokens has been set to default: {limit_token}')
+            elif 0 < self.custom_limit_tokens <= limit_token:
+                limit_token = self.custom_limit_tokens
+            elif self.custom_limit_tokens > limit_token:
+                self.logger.warning('The value of custom_limit_tokens exceeds the default value.')
+                limit_token = self.custom_limit_tokens
 
         result = []
         tmp_lst = []
@@ -387,7 +406,7 @@ class OpenAITrans:
         return translated_content
 
     def translate(self, origin_content: list[str], url: str, key: str, model: str, time_out: int,
-                  max_try: int = 5) -> list[str]:
+                  max_try: int = 3) -> list[str]:
         if origin_content:
             pass
         else:
@@ -518,9 +537,8 @@ class OpenAITrans:
         return origin_content
 
     def start_task(self, origin_contents: list[list[str]]):
-        model, limit_tokens, time_out = self.judge_model(self.custom_model)
-        self.logger.info(f"Selected model: {model}")
-        url = f"{self.api_base}/v1/chat/completions"
+        model_name, limit_tokens, time_out = self.judge_model(self.custom_model)
+        self.logger.info(f"Selected model: {model_name}")
         key = self.api_key
 
         cached_pgs_idx = []
@@ -544,7 +562,7 @@ class OpenAITrans:
         for content in spilt_contents:
             start_time = time.time()
             self.logger.info(f"Total split tasks left: {task_num}/{len(spilt_contents)}")
-            translated = self.translate(content, url, key, model, time_out, max_try=self.max_try)
+            translated = self.translate(content, self.api_url, key, model_name, time_out, max_try=self.max_try)
             if isinstance(translated, list):
                 translated_contents.append(translated)
             else:
@@ -574,8 +592,8 @@ class OpenAITrans:
         return finished_trans
 
     def estimate_consumption(self, origin_contents: list[list[str]]):
-        model, limit_tokens, time_out = self.judge_model(self.custom_model)
-        self.logger.info(f"Selected model: {model}")
+        model_name, limit_tokens, time_out = self.judge_model(self.custom_model)
+        self.logger.info(f"Selected model: {model_name}")
         spilt_contents = self.split_task(origin_contents, limit_tokens)
         total_tokens = 0
         for content in spilt_contents:

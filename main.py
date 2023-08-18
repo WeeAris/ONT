@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
 import logging
 import os
 import shutil
@@ -14,13 +13,6 @@ from tools import load_config, extra
 
 load_config.configure_logging()
 logger = logging.getLogger(__name__)
-
-
-def get_file_md5(file_path):
-    with open(file_path, 'rb') as f:
-        data = f.read()
-        md5_value = hashlib.md5(data).hexdigest()
-    return md5_value
 
 
 class Boo:
@@ -202,52 +194,53 @@ if __name__ == '__main__':
     # 解析配置文件
     from engine.openai import OpenAITrans
 
-    config_model = config['openai']['model']
-    if 'cache_method' in config.keys() and config['cache_method'] in ['page', 'split', 'None']:
-        cache_method = config['cache_method']
+    oat = OpenAITrans(target_lang)
 
-    oat = OpenAITrans(config_model, target_lang)
-    if cache_method == 'page':
-        oat.use_page_cache = True
-        oat.use_split_cache = False
-    elif cache_method == 'split':
-        oat.use_page_cache = False
-        oat.use_split_cache = True
+    if 'api_key' in config['openai'].keys() and config['openai']['api_key']:
+        oat.api_key = config['openai']['api_key']
     else:
-        oat.use_page_cache = False
-        oat.use_split_cache = False
+        logger.error("You must fill in a valid API key in the configuration file.")
+        raise UnboundLocalError
 
-    oat.api_base = config['openai']['api_base']
-    oat.api_key = config['openai']['api_key']
+    oat.api_base = config['openai'].get('api_base', oat.api_base)
+    oat.api_path = config['openai'].get('api_path', oat.api_path)
 
-    if 'disable_stream' in config['openai'].keys() and config['openai']['disable_stream'] is True:
-        oat.enable_stream = False
+    if extra.is_valid_url(oat.api_base + oat.api_path):
+        oat.api_url = oat.api_base + oat.api_path
+    else:
+        logger.error("Invalid API URL, please check the API base and API path values.")
+        raise ValueError
 
-    if 'disable_dict_fmt' in config['openai'].keys() and config['openai']['disable_dict_fmt'] is True:
-        oat.enable_dict_fmt = False
+    oat.use_unofficial_model = config['openai'].get('use_unofficial_model', False)
+    oat.custom_model = config['openai'].get('model', oat.default_model)
+    oat.enable_stream = config['openai'].get('disable_stream', True)
+    oat.enable_dict_fmt = config['openai'].get('disable_dict_fmt', True)
+    oat.custom_sys_prompt = config['openai'].get('custom_prompt', '')
 
-    if 'custom_prompt' in config['openai'].keys() and config['openai']['custom_prompt']:
-        oat.custom_sys_prompt = config['openai']['custom_prompt']
-
-    if 'token_limit' in config['openai'].keys():
+    if 'token_limit' in config['openai'].keys() and isinstance(config['openai']['token_limit'], int):
         token_limit = config['openai']['token_limit']
-        if isinstance(token_limit, int):
-            oat.custom_limit_tokens = token_limit
-            logger.info(f"has been set to a customized token_limit value: {token_limit}.")
-        else:
-            logger.warning(f"token_limit should be set to an integer value, not: {token_limit}.")
-    raw_glossary = load_config.parse_glossary(config)
-    oat.glossary_dict = oat.formatting_glossary(raw_glossary)
+        logger.info(f"The token limit has been set to a custom value: {token_limit}.\n")
+    elif oat.use_unofficial_model is True:
+        logger.error("When you enable unofficial models, you must set a custom token_limit value.")
+        raise UnboundLocalError
 
-    md5 = get_file_md5(book_path)
+    oat.max_try = config.get('max_try', 3)
+    cache_method = config.get('cache_method', 'None')
+    oat.use_page_cache = cache_method == 'page'
+    oat.use_split_cache = cache_method == 'split'
+
+    raw_glossary = load_config.parse_glossary(config)
+    if raw_glossary:
+        oat.glossary_dict = oat.formatting_glossary(raw_glossary)
+
+    md5 = extra.get_file_md5(book_path)
     if 'cache_file' in config.keys() and config['cache_file'].endswith('.db'):
         cache_file = config['cache_file']
     else:
         cache_file = f"cache/{md5}.db"
-    if 'pre_trans' in config.keys() and config['pre_trans']:
-        pre_translate_title = True
-    if 'max_try' in config.keys() and isinstance(config['max_try'], int):
-        oat.max_try = config['max_try']
+    oat.reconnect_conn(cache_file)
+
+    pre_translate_title = config.get('pre_trans', False)
 
     tmp_path = f".{md5}.epub"
     if os.path.exists(tmp_path) and os.path.isfile(tmp_path):
@@ -269,8 +262,6 @@ if __name__ == '__main__':
         oat.estimate_consumption(orig_pgs_texts)
         exit()
     # 准备翻译任务
-
-    oat.reconnect_conn(cache_file)
 
     if pre_translate_title and orig_titles:
         logger.info("Translate titles before starting to translate content.\n")

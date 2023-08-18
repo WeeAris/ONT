@@ -1,10 +1,14 @@
 """
-本文件中的代码全部由AI生成，软件开发者本人不具有著作权。
+本文件中的代码全部由AI生成，@WeeAris本人不具有著作权。
 代码来源：Perplexity AI语言模型。
-来源地址：https://www.perplexity.ai/search/267e1f15-0940-4521-8db0-afc6083bd537?s=c
+来源地址：
+- https://www.perplexity.ai/search/267e1f15-0940-4521-8db0-afc6083bd537?s=c
+- https://www.perplexity.ai/search/a8a77e22-88ef-498b-b9f5-0b0869476bc6?s=c
+- https://www.perplexity.ai/search/e7063381-3099-4650-8b77-71e0876ae2ed?s=c
 """
-
+import hashlib
 import re
+from urllib.parse import urlparse
 
 
 def is_arabic_numeral(s):
@@ -47,3 +51,18 @@ def is_number(s):
 def is_text(s):
     # 判断字符串是否为普通文本
     return not is_number(s)
+
+
+def get_file_md5(file_path):
+    with open(file_path, 'rb') as f:
+        data = f.read()
+        md5_value = hashlib.md5(data).hexdigest()
+    return md5_value
+
+
+def is_valid_url(uurl):
+    try:
+        result = urlparse(uurl)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
