@@ -77,9 +77,14 @@ class OpenAITrans:
         self.default_user_prompt = ("<!--start-input-->\n"
                                     "$origin_text\n"
                                     "<!--end-input-->")
+        self.default_assistant_prompt = ("<!--start-output-->\n"
+                                         "$trans_text\n"
+                                         "<!--end-output-->")
         self.enable_dict_fmt = True
         self.enable_repeat_check = True
         self.glossary_dict = {}
+        self.context_num = 0
+        self.context_all: list = []
         self.max_try = 3
         self.failed = 0
         self.enable_stream = True
@@ -189,7 +194,7 @@ class OpenAITrans:
             sys_prompt = self.gen_sys_prompt()
             user_prompt = self.gen_user_message(["This is a user message"])
             prompt_tokens = len(self.enc.encode(sys_prompt)) + len(self.enc.encode(user_prompt))
-            limit_token = (limit_token * 0.75 - prompt_tokens) / 2
+            limit_token = (limit_token * 0.7 - prompt_tokens) / (2 * (self.context_num + 1))
 
             if self.custom_limit_tokens == 0:
                 self.logger.info(f'The value of limit_tokens has been set to default: {limit_token}')
@@ -215,7 +220,7 @@ class OpenAITrans:
                                       f"choose to use a model that supports longer context windows.")
                     raise ValueError
 
-            if len(self.enc.encode(str(tmp_lst))) > limit_token / 3:
+            if self.context_num == 0 and len(self.enc.encode(str(tmp_lst))) > limit_token / 3:
                 result.append(tmp_lst)
                 tmp_lst = []
         # If tmp_lst not empty
@@ -337,6 +342,18 @@ class OpenAITrans:
             msg = template.substitute(origin_text=origin_text)
         return msg
 
+    def gen_assistant_message(self, trans_content: list[str]):
+        template = Template(self.default_assistant_prompt)
+        if self.enable_dict_fmt:
+            trans_text_dict = {}
+            for i, para in enumerate(trans_content):
+                trans_text_dict[str(i + 1)] = para
+            msg = template.substitute(trans_text=trans_text_dict)
+        else:
+            trans_text = "\n".join(trans_content)
+            msg = template.substitute(trans_text=trans_text)
+        return msg
+
     def parse_result_msg(self, result_msg: str) -> dict:
         result = {}
         result_msg = result_msg.strip()
@@ -348,9 +365,10 @@ class OpenAITrans:
                 result_dict: dict = json.loads(result_msg)
             except json.decoder.JSONDecodeError as e:
                 if "Expecting property name enclosed in double quotes" in e.msg:
-                    self.logger.warning('A quote error was detected and will attempt to fix it.')
+                    self.logger.warning('A quote error was detected in format and will attempt to fix it.')
                     try:
                         result_dict: dict = json.loads(result_msg.replace("'", "\""))
+                        self.logger.info('Fixed successfully.')
                     except json.decoder.JSONDecodeError as e:
                         self.logger.error(f'Attempts to fix failed, translation message: \n{result_msg}\n')
                         raise e
@@ -415,6 +433,7 @@ class OpenAITrans:
             cache_translated = self.lookup_split_cache(origin_content)
             if cache_translated:
                 self.logger.info("Hit translation cache, use cache as result.")
+                self.context_all.append([origin_content, cache_translated])
                 return cache_translated
 
         self.logger.info("Do not allow use cached results or no cache hit, start the translation request.")
@@ -431,11 +450,22 @@ class OpenAITrans:
         else:
             presence_penalty = 0.1
             frequency_penalty = 0.2
+
+        messages = [{"role": "system", "content": sys_prompt}]
+        if self.context_num > 0 and len(self.context_all) > 0:
+            if self.context_num <= len(self.context_all):
+                last_contexts = self.context_all[-self.context_num:]
+            else:
+                last_contexts = self.context_all.copy()
+            for context in last_contexts:
+                messages.append({"role": "user", "content": self.gen_user_message(context[0])})
+                messages.append({"role": "assistant", "content": self.gen_assistant_message(context[1])})
+            self.logger.info(f'Added {len(last_contexts)} contexts into messages.')
+        messages.append({"role": "user", "content": user_msg})
+
         payload = {
             "model": model,
-            "messages": [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_msg}],
+            "messages": messages,
             "top_p": 1,
             "temperature": 0.6,
             "presence_penalty": presence_penalty,
@@ -464,7 +494,7 @@ class OpenAITrans:
                             if chunk_data['choices'][0]['finish_reason'] is not None:
                                 finish_reason = chunk_data['choices'][0]['finish_reason']
                     full_content = ''.join([m.get('content', '') for m in collected_messages])
-                    prompt_num = len(self.enc.encode(sys_prompt + user_msg))
+                    prompt_num = len(self.enc.encode(json.dumps(messages, ensure_ascii=False)))
                     completion_num = len(self.enc.encode(full_content))
                     total_num = prompt_num + completion_num
                 else:
@@ -500,6 +530,7 @@ class OpenAITrans:
                 # 成功翻译，缓存后返回结果
                 self.write_split_cache(origin_content, translated)
                 self.logger.info(f"The translation was successful with retried {retry_count} times.\n")
+                self.context_all.append([origin_content, translated])
                 return translated
             except requests.exceptions.Timeout:
                 self.logger.error(f"Translate request to f{url} timeout\n")

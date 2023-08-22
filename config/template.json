@@ -8,6 +8,7 @@
         "enable_stream": true,
         "enable_dict_fmt": true,
         "custom_prompt": "",
+        "context_num": 0,
         "token_limit": 3000
     },
     "cache_method": "split",

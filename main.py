@@ -216,6 +216,7 @@ if __name__ == '__main__':
     oat.enable_stream = config['openai'].get('enable_stream', True)
     oat.enable_dict_fmt = config['openai'].get('enable_dict_fmt', True)
     oat.custom_sys_prompt = config['openai'].get('custom_prompt', '')
+    oat.context_num = config['openai'].get('context_num', 0)
 
     oat.custom_limit_tokens = config['openai'].get('token_limit', 0)
     if oat.use_unofficial_model is True and not oat.custom_limit_tokens:
