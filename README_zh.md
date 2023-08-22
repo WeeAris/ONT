@@ -8,7 +8,6 @@
 
 **已知的缺点**:
 
-	- 未开放自定义提示词功能
 	- 不支持异步并发翻译
 	- 只支持epub
 	- 不支持单个段落长度超过模型上下文窗口的翻译
@@ -30,6 +29,8 @@
 	- 不进行翻译，只对token消耗进行估算
     - 能自定义缓存文件位置
 	- 能全局统计token实际消耗
+    - 自定义提示词功能（实验性的）
+    - 上下文模式（类似于历史消息）
 
 **使用示例**:
 
@@ -39,7 +40,7 @@ python3 ONT/main.py -b 'path/to/your/ebook.epub' -c 'path/to/your/config.json' -
 
 **术语表示例**:
 
-支持的术语类型有per, noun, loc, title, phrase，详细信息请阅读源码。
+支持的术语类型有per（可选的性别设置）, noun, loc, title, phrase，详细信息请阅读源码。
 
 ```json
 {
@@ -73,4 +74,4 @@ python3 ONT/main.py -b 'path/to/your/ebook.epub' -c 'path/to/your/config.json' -
 
 **配置文件示例**:
 
-请查看仓库中的[template.json](https://github.com/WeeAris/ONT/blob/master/config/template.json)文件
+选项较多，请参考仓库中的[template.json](https://github.com/WeeAris/ONT/blob/master/config/template.json)文件

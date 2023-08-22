@@ -3,11 +3,11 @@
 
 English | [简体中文](https://github.com/WeeAris/ONT/blob/master/README_zh.md)
 
+
 This is a script that uses the OpenAI API to translate epub files. Other than retaining layouts and images relatively well, everything else about it is crappy, please do not use this project if you have better alternatives. 
 
 **Known Issues**:
 
-	- Does not allow custom prompt engineering
 	- Does not support concurrent async translation
 	- Only supports epub 
 	- Does not handle paragraphs longer than model context window
@@ -29,6 +29,8 @@ This is a script that uses the OpenAI API to translate epub files. Other than re
 	- Can estimate token cost without actual translation
 	- Can custom cache file
 	- Can track global token consumption
+    - custom prompt (experimental) 
+    - context mode (similar to historical messages) 
 
 **Command Example**:
 
@@ -38,7 +40,7 @@ python3 ONT/main.py -b 'path/to/your/ebook.epub' -c 'path/to/your/config.json' -
 
 **Terminology Example**:
 
-Supports terms types like per, noun, loc, title, phrase, see source code for details.
+Supports terms types like per (optional gender setting), noun, loc, title, phrase, see source code for details.
 
 ```json
 {
@@ -72,4 +74,4 @@ Supports terms types like per, noun, loc, title, phrase, see source code for det
 
 **Config Example**:
 
-See [template.json](https://github.com/WeeAris/ONT/blob/master/config/template.json) in repo for a template.
+Too many options, see [template.json](https://github.com/WeeAris/ONT/blob/master/config/template.json) in repo for a template.
