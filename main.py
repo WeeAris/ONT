@@ -217,12 +217,12 @@ if __name__ == '__main__':
     oat.enable_dict_fmt = config['openai'].get('enable_dict_fmt', True)
     oat.custom_sys_prompt = config['openai'].get('custom_prompt', '')
 
-    if 'token_limit' in config['openai'].keys() and config['openai']['token_limit'] > 0:
-        oat.custom_limit_tokens = config['openai']['token_limit']
-        logger.info(f"The token limit has been set to a custom value: {oat.custom_limit_tokens}.\n")
-    elif oat.use_unofficial_model is True:
+    oat.custom_limit_tokens = config['openai'].get('token_limit', 0)
+    if oat.use_unofficial_model is True and not oat.custom_limit_tokens:
         logger.error("When you enable unofficial models, you must set a custom token_limit value.")
         raise UnboundLocalError
+    else:
+        logger.info(f"The token limit has been set to a custom value: {oat.custom_limit_tokens}.\n")
 
     oat.max_try = config.get('max_try', 3)
     cache_method = config.get('cache_method', 'None')
