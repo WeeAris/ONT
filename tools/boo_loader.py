@@ -80,7 +80,7 @@ class EpubBoo:
         return all_titles
 
     @staticmethod
-    def modify_indent(a: str, b: str) -> str:
+    def fix_indent(a: str, b: str) -> str:
         if b.startswith(' '):
             num_spaces = len(b) - len(b.lstrip())
             return (' ' * num_spaces) + a.lstrip()
@@ -117,7 +117,7 @@ class EpubBoo:
                                     self.logger.error("Error while applying translation to a tag with multiple lines.")
                                     break
                     else:
-                        para_trans = self.modify_indent(para_trans, para)
+                        para_trans = self.fix_indent(para_trans, para)
                         node.string = para_trans
                     para_count += 1
             # logger.debug(f"页面{idx}共有{para_count}段被成功还原.")
@@ -156,7 +156,7 @@ class TxtBoo(EpubBoo):
         ]
 
     def read_book(self):
-        with open(self.book_path) as boo:
+        with open(self.book_path, "r") as boo:
             lines = boo.readlines()
         pg_mk_line_nums = []
         pgs = []
@@ -187,6 +187,36 @@ class TxtBoo(EpubBoo):
                 all_title_lines.append(pg_title_lines)
         return all_title_lines
 
-    def apply_trans_to_pages(self, pages_data: list[bytes], original_contents: list[list[str]],
-                             trans_cts: list[list[str]]) -> list[str]:
-        pass
+    def apply_trans_to_pages(self, pages_data: list[list[str]], original_contents: list[list[str]],
+                             trans_cts: list[list[str]]) -> list[list[str]]:
+        trans_pgs = []
+        for pg_idx, page in enumerate(pages_data):
+            orig_content = original_contents[pg_idx]
+            orig_generator = (line for line in orig_content)
+            one_orig_line = next(orig_generator)
+            trans_content = trans_cts[pg_idx]
+            trans_generator = (line for line in trans_content)
+            one_trans_line = next(trans_generator)
+            trans_page = []
+            for line in page:
+                if line != one_orig_line or one_orig_line == "":
+                    trans_page.append(line)
+                else:
+                    trans_page.append(one_trans_line)
+                    try:
+                        one_orig_line = next(orig_generator)
+                    except StopIteration:
+                        one_orig_line = ""
+                    try:
+                        one_trans_line = next(trans_generator)
+                    except StopIteration:
+                        one_trans_line = ""
+            trans_pgs.append(trans_page)
+
+        return trans_pgs
+
+    @staticmethod
+    def write_pages(tg_path: str, pg_hrefs: list[str], translated_pages_data: list[list[str]]):
+        with open(tg_path, "w") as boo:
+            for pg in translated_pages_data:
+                boo.write("\n".join(pg))
