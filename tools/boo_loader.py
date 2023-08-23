@@ -158,6 +158,7 @@ class TxtBoo(EpubBoo):
     def read_book(self):
         with open(self.book_path, "r") as boo:
             lines = boo.readlines()
+            lines = [line.rstrip() for line in lines]
         pg_mk_line_nums = []
         pgs = []
         for idx, line in enumerate(lines):
