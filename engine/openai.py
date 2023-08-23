@@ -601,7 +601,7 @@ class OpenAITrans:
                 translated_contents.append(content)
             task_num -= 1
             end_time = time.time()
-            self.logger.info(f"A split task took time: {float(end_time - start_time)}")
+            self.logger.info(f"The last split task took time: {float(end_time - start_time)}")
 
         if self.failed > 0:
             self.logger.warning(f"Failed tasks num: {self.failed}/{len(spilt_contents)}\n")
