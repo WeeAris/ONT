@@ -34,7 +34,14 @@ if __name__ == '__main__':
     output_dir = "."
     cache_method = 'split'
     pre_translate_title = False
-    if args.book and os.path.exists(args.book) and args.book.endswith('.epub'):
+    if args.book and os.path.exists(args.book):
+        if args.book.endswith('.epub'):
+            book_type = 'epub'
+        elif args.book.endswith('.txt'):
+            book_type = 'txt'
+        else:
+            logger.error("Unsupported book type.")
+            raise TypeError
         book_path = args.book
     else:
         logger.error("You must specify an epub file that exists.")
@@ -100,11 +107,17 @@ if __name__ == '__main__':
 
     pre_translate_title = config.get('pre_trans', False)
 
-    tmp_path = f".{md5}.epub"
+    tmp_path = f".{md5}.tmp"
     if os.path.exists(tmp_path) and os.path.isfile(tmp_path):
         os.remove(tmp_path)
     shutil.copy2(book_path, tmp_path)
-    book = EpubBoo(tmp_path)
+
+    if book_type == "epub":
+        book = EpubBoo(tmp_path)
+    elif book_type == "txt":
+        book = TxtBoo(tmp_path)
+    else:
+        raise TypeError("Undefined book type")
 
     # 读取epub文件
     page_hrefs, all_pages_data = book.read_book()

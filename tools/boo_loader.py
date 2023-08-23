@@ -168,6 +168,7 @@ class TxtBoo(EpubBoo):
                         pgs.append(lines[pg_mk_line_nums[-2]:idx])
                     else:
                         pgs.append(lines[:idx])
+        pgs.append(lines[pg_mk_line_nums[-1]:])
         return pg_mk_line_nums, pgs
 
     def extract_text_from_pages(self, pgs: list[list[str]]) -> list[list[str]]:
@@ -220,3 +221,4 @@ class TxtBoo(EpubBoo):
         with open(tg_path, "w") as boo:
             for pg in translated_pages_data:
                 boo.write("\n".join(pg))
+                boo.write("\n")
