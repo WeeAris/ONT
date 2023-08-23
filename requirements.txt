@@ -4,3 +4,4 @@ requests~=2.31.0
 tiktoken~=0.4.0
 bs4~=0.0.1
 sseclient-py~=1.7.2
+colorama

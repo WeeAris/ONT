@@ -85,7 +85,8 @@ class OpenAITrans:
         self.glossary_dict = {}
         self.context_num = 0
         self.context_all: list = []
-        self.max_try = 3
+        self.review_times = 0
+        self.review_cache = False
         self.max_err = 3
         self.failed = 0
         self.enable_stream = True
@@ -528,9 +529,18 @@ class OpenAITrans:
                 translated_content = self.check_translation(origin_content, translated_content)
                 translated = list(translated_content.values())
                 self.logger.info(f"The translation totals {len(translated)} lines.")
-                # 成功翻译，缓存后返回结果
+                # 成功翻译，审查并缓存后返回结果
+                if self.review_times > 0:
+                    if not extra.review_trans(origin_content, translated):
+                        choice = input("Do you want to edit current translation? (y/n, default n) ")
+                        if not choice or choice == "n":
+                            self.logger.info("Prepare to re-translate.")
+                            continue
+                        else:
+                            translated = extra.edit_trans(origin_content, translated)
+                self.review_times -= 1
                 self.write_split_cache(origin_content, translated)
-                self.logger.info(f"The translation was successful with retried {err_count} times.\n")
+                self.logger.info(f"The translation was successful with errors {err_count} times.\n")
                 self.context_all.append([origin_content, translated])
                 return translated
             except requests.exceptions.Timeout:
