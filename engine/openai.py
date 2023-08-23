@@ -86,6 +86,7 @@ class OpenAITrans:
         self.context_num = 0
         self.context_all: list = []
         self.max_try = 3
+        self.max_err = 3
         self.failed = 0
         self.enable_stream = True
         self.use_split_cache = True
@@ -424,7 +425,7 @@ class OpenAITrans:
         return translated_content
 
     def translate(self, origin_content: list[str], url: str, key: str, model: str, time_out: int,
-                  max_try: int = 3) -> list[str]:
+                  max_err: int = 3) -> list[str]:
         if origin_content:
             pass
         else:
@@ -477,8 +478,8 @@ class OpenAITrans:
             "Content-Type": "application/json",
             "Authorization": f'Bearer {key}'
         }
-        retry_count = 0
-        while retry_count < max_try:
+        err_count = 0
+        while err_count < max_err:
             try:
                 finish_reason = ''
                 if self.enable_stream:
@@ -529,7 +530,7 @@ class OpenAITrans:
                 self.logger.info(f"The translation totals {len(translated)} lines.")
                 # 成功翻译，缓存后返回结果
                 self.write_split_cache(origin_content, translated)
-                self.logger.info(f"The translation was successful with retried {retry_count} times.\n")
+                self.logger.info(f"The translation was successful with retried {err_count} times.\n")
                 self.context_all.append([origin_content, translated])
                 return translated
             except requests.exceptions.Timeout:
@@ -538,7 +539,7 @@ class OpenAITrans:
                 self.logger.error(f'Failed to decode response, status code: {response.status_code}')
                 self.logger.debug(f'Response: \n{response.text}\n')
                 if response.status_code == 429:
-                    sleep_time = (retry_count + 1) ** 2 * 60.0
+                    sleep_time = (err_count + 1) ** 2 * 60.0
                     self.logger.warning(f"Reached rate limit, try sleep {sleep_time} seconds\n")
                     time.sleep(sleep_time)
                 elif response.status_code == 403:
@@ -560,7 +561,7 @@ class OpenAITrans:
                 self.logger.error(f"Other error: {e}")
                 continue
 
-            retry_count += 1
+            err_count += 1
 
         self.logger.error("Exceeded max retry count, giving up. \n")
         self.failed += 1
@@ -593,7 +594,7 @@ class OpenAITrans:
         for content in spilt_contents:
             start_time = time.time()
             self.logger.info(f"Total split tasks left: {task_num}/{len(spilt_contents)}")
-            translated = self.translate(content, self.api_url, key, model_name, time_out, max_try=self.max_try)
+            translated = self.translate(content, self.api_url, key, model_name, time_out, max_err=self.max_err)
             if isinstance(translated, list):
                 translated_contents.append(translated)
             else:

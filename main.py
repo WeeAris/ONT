@@ -89,7 +89,7 @@ if __name__ == '__main__':
     else:
         logger.info(f"The token limit has been set to a custom value: {oat.custom_limit_tokens}.\n")
 
-    oat.max_try = config.get('max_try', 3)
+    oat.max_err = config.get('max_err', 3)
     cache_method = config.get('cache_method', 'None')
     oat.use_page_cache = cache_method == 'page'
     oat.use_split_cache = cache_method == 'split'
