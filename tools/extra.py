@@ -66,3 +66,11 @@ def is_valid_url(uurl):
         return all([result.scheme, result.netloc])
     except ValueError:
         return False
+
+
+# 下面👇的函数是人类写的
+def list2dict(list_fmt: list[str]):
+    dict_fmt = {}
+    for i, s in enumerate(list_fmt):
+        dict_fmt[str(i + 1)] = s
+    return dict_fmt

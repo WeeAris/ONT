@@ -25,7 +25,7 @@ def lookup_cache(conn: Connection, target_lang: str, engine: str, model: str, or
 def write_cache(conn: Connection, target_lang: str, engine: str, model: str, original_content: list[str],
                 trans_content: list[str], table_name: str, allow_overwrite=False):
     if not original_content:
-        return 
+        return
     c = conn.cursor()
     result = lookup_cache(conn, target_lang, engine, model, original_content, table_name)
     if result is not None and not allow_overwrite:
@@ -44,14 +44,16 @@ def write_cache(conn: Connection, target_lang: str, engine: str, model: str, ori
 
 def write_failed_cache(conn: Connection, target_lang: str, engine: str, model: str, original_content: list[str],
                        trans_content: list | dict):
+    from tools.extra import list2dict
     c = conn.cursor()
-    if isinstance(trans_content, dict):
-        trans = list(trans_content.values())
+    if isinstance(trans_content, list):
+        trans = list2dict(trans_content)
     else:
         trans = trans_content
+    orig = list2dict(original_content)
     saved_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     c.execute(f'''INSERT INTO failed_cache (target, engine, model, original, trans, time)
                                 VALUES (?, ?, ?, ?, ?, ?)''',
-              (target_lang, engine, model, json.dumps(original_content, ensure_ascii=False),
+              (target_lang, engine, model, json.dumps(orig, ensure_ascii=False),
                json.dumps(trans, ensure_ascii=False), saved_time))
     conn.commit()
